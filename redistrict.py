@@ -2,11 +2,12 @@ import json
 from itertools import groupby
 
 def districts():
-    data = json.load(open('/Users/ob4c/redistrict/wageo.json'))
+    data = json.load(open('/Users/ob4c/redistrict-bigfiles/wageo.json'))
     group = get_group(data)
-    groups = partition(group, 4)
+    groups = partition(group, 33)
     new = label(data, groups)
-    json.dump(newdata,open('new.json','w'))
+    json.dump(new,open('new2.json','w'))
+    return new
     
 def get_coordinates_from_feature(feature):
     if feature['geometry']['type'] == 'Polygon':
@@ -39,9 +40,11 @@ def divide(group, ratio):
     return group1, group2
 
 def partition(group, sections):
+    print('sections', sections)
     if sections == 1:
 	    return [group]
-    low = sections/2
+    low = sections//2
+    print('low', low)
     ratio = float(low)/sections
     group1, group2 = divide(group, ratio)
     return partition(group1, low) + partition(group2,sections-low)
@@ -70,8 +73,8 @@ def get_pop(group):
 
 def label(data,groups):
     for i,group in enumerate(groups):
+        print(i, get_pop(group))
         for block in group:
             data['features'][block['i']]['properties']['group'] = i
-            data['features'][block['i']]['style'] = {'fill': 'red' if i==0 else 'blue'}
     return data
 
