@@ -32,9 +32,6 @@ def divide(group, ratio, axis):
     for i,v in axis:
         if new_population < population:
             for block in v:
-                if counter == 0:
-                    print('b1', block['i'])
-                    counter += 1
                 group1.append(block)
                 new_population += block['p']
         else:
@@ -73,10 +70,13 @@ def get_axis(group):
 
 def get_axes(group):
     by_x = sorted(group,key=lambda x: x['x'])
+    rev_by_x = reversed(by_x)
     by_y = sorted(group,key=lambda x: x['y'])
-    print('x', by_x[0])
-    print('y', by_y[0])
-    return groupby(by_x, key=lambda x: x['x']), groupby(by_y, key=lambda x: x['y'])
+    rev_by_y = reversed(by_y)
+    return (groupby(by_x, key=lambda x: x['x']),
+        groupby(by_y, key=lambda x: x['y']),
+        groupby(rev_by_x, key=lambda x: x['x']),
+        groupby(rev_by_y, key=lambda x: x['y']))
 
 def get_ratio(group):
     spreads = sorted([get_spread(group, 'x'), get_spread(group, 'y')])
@@ -87,7 +87,7 @@ def naive_bisect(group, ratio):
     return divide(group, ratio, axis)
 
 def optimize_area_bisect(group, ratio):
-    a1, a2 = get_axes(group)
+    a1, a2, a3, a4 = get_axes(group)
     groupings1 = divide(group, ratio, a1)
     min1 = min(map(get_ratio, groupings1))
     print('min1', min1)
