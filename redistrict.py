@@ -68,6 +68,9 @@ def get_axis(group):
         dim = 'y'
     return groupby(sorted(group,key=lambda x: x[dim]), key=lambda x: x[dim])
 
+def get_axes(group):
+    return groupby(sorted(group,key=lambda x: x['x']), key=lambda x: x['x']), groupby(sorted(group,key=lambda x: x['y']), key=lambda x: x['y'])
+
 def get_pop(group):
     return sum(i['p'] for i in group)
 
