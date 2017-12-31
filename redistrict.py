@@ -1,111 +1,95 @@
 import json
 from itertools import groupby
+from operator import itemgetter
 
-def districts(n, bisect):
-    data = json.load(open('/Users/ob4c/redistrict-bigfiles/wageo.json'))
-    group = get_group(data)
-    groups = partition(group, n, bisect)
-    new = label(data, groups)
-    json.dump(new,open('new2.json','w'))
+def districts(n, bisect, outfile):
+    geojson = json.load(open('/Users/ob4c/redistrict-bigfiles/wageo.json'))
+    new = label(geojson, groups(initial_group(geojson), n, bisect))
+    json.dump(new, open(outfile,'w'))
     return new
     
-def get_coordinates_from_feature(feature):
+def coordinates(feature):
     if feature['geometry']['type'] == 'Polygon':
         return feature['geometry']['coordinates'][0]
     if feature['geometry']['type'] == 'MultiPolygon':
         return feature['geometry']['coordinates'][0][0]
 
-def get_population_from_feature(feature):
-    return feature['properties']['POP10']
-
-def get_coordinate_from_feature(feature):
-    coordinates = get_coordinates_from_feature(feature)
-    xs,ys = zip(*coordinates)
+def coordinate(feature):
+    xs, ys = zip(*coordinates(feature))
     return max(xs), max(ys)
 
-def divide(group, ratio, axis):
-    population = get_pop(group)*ratio
+def bisection(group, ratio, axis):
+    threshold = population(group)*ratio
     group1 = []
     group2 = []
-    new_population = 0
-    counter = 0
-    for i,v in axis:
-        if new_population < population:
+    for i, v in axis:
+        if threshold > 0:
             for block in v:
                 group1.append(block)
-                new_population += block['p']
+                threshold -= block['p']
         else:
             for block in v:
                 group2.append(block)
     return group1, group2
 
-def partition(group, sections, bisect):
-    print('sections', sections)
+def groups(group, sections, bisect):
     if sections == 1:
 	    return [group]
     low = sections//2
-    print('low', low)
     ratio = float(low)/sections
     group1, group2 = bisect(group, ratio)
-    return partition(group1, low, bisect) + partition(group2,sections-low, bisect)
+    return groups(group1, low, bisect) + groups(group2,sections-low, bisect)
 
-def get_spread(data, key):
-    a = sorted([i[key] for i in data])
+def span(group, dimension):
+    a = sorted([i[dimension] for i in group])
     return a[-1]-a[0]
 
-def get_group(data):
+def initial_group(geojson):
     lst = []
-    for i,v in enumerate(data['features']):
-        p = get_population_from_feature(v)
-        x,y = get_coordinate_from_feature(v)
+    for i,v in enumerate(geojson['features']):
+        p = v['properties']['POP10']
+        x,y = coordinate(v)
         lst.append({'p':p, 'x':x, 'y':y, 'i':i})
     return lst
 
-def get_axis(group):
-    if get_spread(group, 'x') > get_spread(group, 'y'):
-        dim = 'x'
+def axis(group, dim):
+    k = itemgetter(dim)
+    return groupby(sorted(group, key=k), key=k)
+
+def longest_axis(group):
+    if span(group, 'x') > span(group, 'y'):
+        dimension = 'x'
     else:
-        dim = 'y'
-    return groupby(sorted(group,key=lambda x: x[dim]), key=lambda x: x[dim])
+        dimension = 'y'
+    return axis(group, dimension)
 
-def get_axes(group):
-    by_x = sorted(group,key=lambda x: x['x'])
-    rev_by_x = reversed(by_x)
-    by_y = sorted(group,key=lambda x: x['y'])
-    rev_by_y = reversed(by_y)
-    return (groupby(by_x, key=lambda x: x['x']),
-        groupby(by_y, key=lambda x: x['y']),
-        groupby(rev_by_x, key=lambda x: x['x']),
-        groupby(rev_by_y, key=lambda x: x['y']))
+def axes(group):
+    return axis(group, 'x'), axis(group, 'y')
 
-def get_ratio(group):
-    spreads = sorted([get_spread(group, 'x'), get_spread(group, 'y')])
-    return spreads[0]/spreads[1]
+def squareness(group): # 0-1, 0 least square, 1 is most square
+    spans = sorted([span(group, 'x'), span(group, 'y')])
+    return spans[0]/spans[1]
 
-def naive_bisect(group, ratio):
-    axis = get_axis(group)
-    return divide(group, ratio, axis)
+def naive_bisection(group, ratio):
+    return bisection(group, ratio, longest_axis(group))
 
-def optimize_area_bisect(group, ratio):
-    a1, a2, a3, a4 = get_axes(group)
-    groupings1 = divide(group, ratio, a1)
-    min1 = min(map(get_ratio, groupings1))
-    print('min1', min1)
-    groupings2 = divide(group, ratio, a2)
-    min2 = min(map(get_ratio, groupings2))
-    print('min2', min2)
+def optimize_area_bisection(group, ratio):
+    axis1, axis2 = axes(group)
+    groupings1 = bisection(group, ratio, axis1)
+    min1 = min(map(squareness, groupings1))
+    groupings2 = bisection(group, ratio, axis2)
+    min2 = min(map(squareness, groupings2))
     if min1 > min2:
         return groupings1
     else:
         return groupings2
 
-def get_pop(group):
+def population(group):
     return sum(i['p'] for i in group)
 
-def label(data,groups):
+def label(geojson, groups):
     for i,group in enumerate(groups):
-        print(i, get_pop(group))
+        print(i, population(group))
         for block in group:
-            data['features'][block['i']]['properties']['group'] = i
-    return data
-
+            geojson['features'][block['i']]['properties']['group'] = i
+    return geojson
